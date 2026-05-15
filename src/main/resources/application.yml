@@ -16,6 +16,12 @@ spring:
                 - Path=/api/v1/doctors/**
               filters:
                 - jwtFilter
+            - id: patient-service
+              uri: http://127.0.0.1:8082
+              predicates:
+                - Path=/api/v1/patients/**
+              filters:
+                - jwtFilter
 
 server:
   port: 80

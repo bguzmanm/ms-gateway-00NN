@@ -1,5 +1,7 @@
 package cl.duoc.gateway.filter;
 
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
@@ -41,13 +43,34 @@ public class JwtWebMvcFilter implements HandlerFilterFunction<ServerResponse, Se
             byte[] keyBytes = Decoders.BASE64.decode(secretKey);
             SecretKey key = Keys.hmacShaKeyFor(keyBytes);
 
-            Jwts.parser()
+            Jws<Claims> claimsJws = Jwts.parser()
                     .verifyWith(key)
                     .build()
                     .parseSignedClaims(token);
 
-            logger.info("Token válido para: {}", path);
-            return next.handle(request);
+            Claims claims = claimsJws.getPayload();
+            String username = claims.getSubject();
+            Object roles = claims.get("roles");
+            String rolesStr = "";
+
+            if (roles instanceof java.util.Collection<?>) {
+                java.util.Collection<?> rolesList = (java.util.Collection<?>) roles;
+                rolesStr = rolesList.stream()
+                        .map(Object::toString)
+                        .collect(java.util.stream.Collectors.joining(","));
+            } else if (roles != null) {
+                rolesStr = roles.toString();
+            }
+
+            logger.info("Token válido para: {}. Usuario: {}, Roles: {}", path, username, rolesStr);
+
+            // Creamos una nueva petición con las cabeceras adicionales
+            ServerRequest modifiedRequest = ServerRequest.from(request)
+                    .header("X-User-Name", username)
+                    .header("X-User-Roles", rolesStr)
+                    .build();
+
+            return next.handle(modifiedRequest);
         } catch (Exception e) {
             logger.error("Token inválido para {}: {}", path, e.getMessage());
             return ServerResponse.status(HttpStatus.UNAUTHORIZED).build();
